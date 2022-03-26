@@ -28,6 +28,8 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+static struct list sleep_list; /* project 1 : list for store block state thread */
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +94,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list); /* project 1 : reset sleep_list */
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -321,6 +324,46 @@ thread_yield (void)
   schedule ();
   intr_set_level (old_level);
 }
+
+/* project 1 */
+
+void
+thread_sleep(int64_t ticks){
+  struct thread *curr; /* variable for current thread */
+  enum intr_level cur_state; /* variable for interrupt state */
+
+  cur_state = intr_disable (); /* change thread to interrupt disable state to prevent unexpected interrupt */ 
+  curr = thread_current (); /* store current thread */
+
+  ASSERT(curr != idle_thread) /* check the thread is not idle_thread) */
+
+  curr->wake_up_tick = ticks; /* set thread's wake_up_tick to ticks */
+  list_push_back (&sleep_list, &curr->elem); /* push thread into sleep_list */
+  thread_block(); /* make thread block */
+
+
+  intr_set_level (cur_state); /* return previous interrupt state */
+}
+
+void
+thread_awake(int64_t ticks) {
+  
+  struct list_elem *lp = list_begin (&sleep_list); /* variable for list pointer */
+
+
+  while (lp != list_end(&sleep_list)) { /* check every element of list */
+      struct thread *temp = list_entry(lp, struct thread, elem); /* set temp_thread to pointer's thread in sleep_list */
+
+      if(temp->wake_up_tick <= ticks) { /* check thread's wake_up_tick */
+          lp = list_remove(lp); /* delete thread from sleep list */
+          thread_unblock(temp); /* thread_unblocking */
+      }
+      else {
+	  lp = list_next(lp); /* set pointer to next element */
+      }
+  }
+}
+
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
