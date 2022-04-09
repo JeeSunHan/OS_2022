@@ -95,6 +95,13 @@ struct thread
 
     int64_t wake_up_tick; /* project 1 : make variable to store wake_up_tick */
 
+    int old_priority; /* project 2 */
+
+    struct lock *waiting_lock;
+    struct list donation_list;
+    struct list_elem donation_elem;
+
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -121,12 +128,19 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
+
+
+
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+bool compare_priority(struct list_elem *a, struct list_elem *b, void *aux);
+void donate_priority(void);
+void recover_priority(void);
+void preemption_check(void);
 
 void thread_sleep(int64_t ticks); /* header for project 1 */
 void thread_awake(int64_t ticks); /* header for project 1 */

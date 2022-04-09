@@ -212,6 +212,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  preemption_check();
   return tid;
 }
 
@@ -248,10 +249,19 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  /* list_push_back (&ready_list, &t->elem); */
+  list_insert_ordered(&ready_list, &t->elem, compare_priority, NULL); /* project 2  */
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
+
+void
+preemption_check(void) {
+  if(list_entry(list_begin(&ready_list), struct thread, elem)->priority > thread_current ()->priority) {
+      thread_yield();
+  }
+}
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -318,13 +328,49 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+  if (cur != idle_thread) {
+    /* list_push_back (&ready_list, &cur->elem); */
+    list_insert_ordered(&ready_list, &cur->elem, compare_priority, NULL); /*project 2 */
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
 }
 
+bool /* project 2 : priority comparer */ 
+compare_priority(struct list_elem* a, struct list_elem* b, void *aux) {
+  if(list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority) {
+      return true;
+  }
+  else {
+      return false;
+  }
+}
+
+void /* project 2 : priority donation */
+donate_priority(void) {
+  int depth;
+  struct thread *cur = thread_current ();
+
+  for (depth = 0; (cur->waiting_lock != NULL) && (depth < 8); depth++){
+      struct thread *lock_holder = cur->waiting_lock->holder;
+      lock_holder->priority = cur-> priority;
+      cur = lock_holder;
+  }
+}
+
+void
+recover_priority(void) {
+  struct thread *cur = thread_current ();
+
+  cur->priority = cur->old_priority;
+
+  int front_priority = list_entry(list_begin(&cur->donation_list), struct thread, donation_elem)->priority;
+  if(!list_empty (&cur->donation_list) && front_priority > thread_get_priority()) {
+      cur->priority = front_priority;
+  }
+
+}
 /* project 1 */
 
 void
@@ -386,7 +432,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  thread_current ()->priority = new_priority;  
+  thread_current ()->old_priority = thread_current ()->priority;
+  recover_priority();
+
+  preemption_check(); 
+   
 }
 
 /* Returns the current thread's priority. */
@@ -513,6 +564,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+  t->old_priority = priority;
+  t->waiting_lock = NULL;
+  list_init (&t->donation_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

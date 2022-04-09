@@ -30,6 +30,8 @@ bool lock_try_acquire (struct lock *);
 void lock_release (struct lock *);
 bool lock_held_by_current_thread (const struct lock *);
 
+bool compare_priority2(struct list_elem* a, struct list_elem* b, void *aux);
+
 /* Condition variable. */
 struct condition 
   {
