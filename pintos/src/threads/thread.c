@@ -212,7 +212,10 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  preemption_check();
+  if(list_entry(list_begin(&ready_list), struct thread, elem)->priority > thread_current ()->priority) {
+      thread_yield();
+  }
+
   return tid;
 }
 
@@ -255,11 +258,9 @@ thread_unblock (struct thread *t)
   intr_set_level (old_level);
 }
 
-void
-preemption_check(void) {
-  if(list_entry(list_begin(&ready_list), struct thread, elem)->priority > thread_current ()->priority) {
-      thread_yield();
-  }
+struct list *
+return_ready_list(void) {
+  return &(ready_list);
 }
 
 
@@ -436,8 +437,9 @@ thread_set_priority (int new_priority)
   thread_current ()->old_priority = thread_current ()->priority;
   recover_priority();
 
-  preemption_check(); 
-   
+  if(list_entry(list_begin(&ready_list), struct thread, elem)->priority > thread_current ()->priority) {
+      thread_yield();
+   }
 }
 
 /* Returns the current thread's priority. */

@@ -140,7 +140,7 @@ void thread_yield (void);
 bool compare_priority(struct list_elem *a, struct list_elem *b, void *aux);
 void donate_priority(void);
 void recover_priority(void);
-void preemption_check(void);
+struct list *return_ready_list(void);
 
 void thread_sleep(int64_t ticks); /* header for project 1 */
 void thread_awake(int64_t ticks); /* header for project 1 */

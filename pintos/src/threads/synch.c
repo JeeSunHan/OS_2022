@@ -119,7 +119,9 @@ sema_up (struct semaphore *sema)
   }
   sema->value++;
 
-  preemption_check();
+  if(list_entry(list_begin(return_ready_list()), struct thread, elem)->priority > thread_current ()->priority) {
+      thread_yield();
+  }
   intr_set_level (old_level);
 }
 
