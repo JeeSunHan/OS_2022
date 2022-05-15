@@ -7,7 +7,6 @@
 static void syscall_handler (struct intr_frame *);
 void halt (void);
 void exit (int);
-pid_t exec(const char*);
 
 void
 syscall_init (void) 
