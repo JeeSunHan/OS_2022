@@ -28,8 +28,11 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+  char *fn_copy, *name, *save_ptr;
   tid_t tid;
+
+
+  strlcpy(name, file_name, strlen (file_name) + 1);
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -38,8 +41,10 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  name = strtok_r(name, " ", &save_ptr);  
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -51,20 +56,29 @@ static void
 start_process (void *file_name_)
 {
   char *file_name = file_name_;
+  char *save;
+  char *save_ptr;
   struct intr_frame if_;
   bool success;
 
+  strlcpy(save, file_name, strlen(file_name)+1);
+  
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
 
+  save = strtok_r(save, " ", &save_ptr);  
+  success = load (save, &if_.eip, &if_.esp);
+
+  parse_store(file_name, &if_.esp);  
+  
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -75,6 +89,66 @@ start_process (void *file_name_)
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
+
+void 
+parse_store(char *cmd_string, void ** esp)
+{
+  char *token, *save_ptr;
+  int argc, str_len, temp_len;
+  char save[256];
+  char *argv[32];
+  
+  strlcpy(save, cmd_string, strlen(cmd_string) + 1);
+
+  argc = 0;
+  token = strtok_r(save, " ", &save_ptr);
+
+  while (token != NULL)
+  {
+      argv[argc] = token;
+      token = (NULL, " ", &save_ptr);
+      argc++;
+  }
+
+  str_len = 0;
+  int i;
+  for (i = argc - 1; i >= 0; i--)
+  {
+      temp_len = strlen(argv[i]);
+      int j;
+      for(j = temp_len; j >= 0; j--)
+      {
+          char argv_char = argv[i][j];
+	  (*esp)--;	
+	  **(char **)esp = argv_char;
+      }
+      argv[i] = *(char **)esp;
+  }
+
+
+  int padding = (int)*esp % 8;
+  int k;
+  for (k = 0; k < padding; k++)
+  {
+      (*esp)--;
+      **(uint8_t **)esp = 0;
+  }
+
+  (*esp) -= 8;
+  **(char ***)esp = 0;
+  int q;
+  for(q = argc - 1; q >= 0; q--) 
+  {
+      (*esp) -= 8;
+      **(char ***)esp = argv[q];
+  }
+
+  (*esp) -= 8;
+  **(char ***)esp = 0;
+
+  free(argv);
+}
+
 
 /* Waits for thread TID to die and returns its exit status.  If
    it was terminated by the kernel (i.e. killed due to an
