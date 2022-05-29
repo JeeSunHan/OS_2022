@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -93,18 +94,17 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    int64_t wake_up_tick; /* project 1 : make variable to store wake_up_tick */
-
-    int old_priority; /* project 2 */
-
-    struct lock *waiting_lock;
-    struct list donation_list;
-    struct list_elem donation_elem;
-
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct semaphore child_lock;
+    struct semaphore mem_lock;
+    struct semaphore load_lock;
+    struct thread* parent;
+    struct list child;
+    struct list_elem child_elem;
+    int exit_status;
+    struct file* fd[200];
 #endif
 
     /* Owned by thread.c. */
@@ -128,23 +128,12 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
-
-
-
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
-bool compare_priority(struct list_elem *a, struct list_elem *b, void *aux);
-void donate_priority(void);
-void recover_priority(void);
-struct list *return_ready_list(void);
-
-void thread_sleep(int64_t ticks); /* header for project 1 */
-void thread_awake(int64_t ticks); /* header for project 1 */
-
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
